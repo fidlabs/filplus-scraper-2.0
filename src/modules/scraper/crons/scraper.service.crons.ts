@@ -82,38 +82,10 @@ export class ScraperServiceCrons {
     );
   }
 
-  //sync scraper db copy with tracer 
-  // @EnhancedCron(
-  //   CronExpression.EVERY_2_HOURS,
-  //   CronExpression.EVERY_2_HOURS,
-  // )
-  async syncTracerVerifierAllowances() {
+  @EnhancedCron(CronExpression.EVERY_2_HOURS, CronExpression.EVERY_2_HOURS)
+  async buildNetiDashboardGraphs() {
     await this.cronUtilsService.executeCron(
-      'syncTracerVerifierAllowances',
-      'scraperService',
-      [],
-    );
-  }
-
-  // @EnhancedCron(
-  //   CronExpression.EVERY_2_HOURS,
-  //   CronExpression.EVERY_2_HOURS,
-  // )
-  async syncTracerVerifiedClientAllowances() {
-    await this.cronUtilsService.executeCron(
-      'syncTracerVerifiedClientAllowances',
-      'scraperService',
-      [],
-    );
-  }
-
-  // @EnhancedCron(
-  //   CronExpression.EVERY_2_HOURS,
-  //   CronExpression.EVERY_2_HOURS,
-  // )
-  async syncTracerDeals() {
-    await this.cronUtilsService.executeCron(
-      'syncTracerDeals',
+      'buildNetiDashboardGraphs',
       'scraperService',
       [],
     );

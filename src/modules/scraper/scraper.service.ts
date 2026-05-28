@@ -19,6 +19,7 @@ import { LotusService } from '../lotus/lotus.service';
 import { GlobalValues } from '../../../submodules/filecoin-plus-scraper-entities/globalValues.entity';
 import { Verifier } from '../../../submodules/filecoin-plus-scraper-entities/verifier.entity';
 import { VerifiedClient } from '../../../submodules/filecoin-plus-scraper-entities/verifiedClient.entity';
+
 import {
   decodeEventParam,
   readObjectAsArray,
@@ -34,6 +35,9 @@ import { VirtualVerifiedClientAllowance as TracerVirtualVerifiedClientAllowance 
 import { Deal as TracerDeal } from './tracerEntities/deal.entity';
 
 import { VerifiedClientAllowance } from '../../../submodules/filecoin-plus-scraper-entities/verifiedClientAllowance.entity';
+import { DcAllocatedToClientsGroupedByVerifiersWow } from '../../../submodules/filecoin-plus-scraper-entities/dcAllocatedToClientsGroupedByVerifiersWow.entity';
+import { DcAllocatedToClientsTotalByWeek } from '../../../submodules/filecoin-plus-scraper-entities/dcAllocatedToClientsTotalByWeek.entity';
+import { DcUsedByClientsWow } from '../../../submodules/filecoin-plus-scraper-entities/dcUsedByClientsWow.entity';
 
 import * as BN from 'bn.js';
 
@@ -53,6 +57,7 @@ import { MetaAllocator } from 'submodules/filecoin-plus-scraper-entities/metaAll
 import { ScraperUtilsService } from './utils/scraper.utils.service';
 import { TRACER_DB } from '../database-config/tracer.providers';
 
+
 @Injectable()
 export class ScraperService {
   private mg = null;
@@ -68,6 +73,12 @@ export class ScraperService {
     @InjectRepository(VerifiedClient)
     private verifiedClientsRepository: Repository<VerifiedClient>,
     protected readonly config: AppConfig,
+    @InjectRepository(DcAllocatedToClientsGroupedByVerifiersWow)
+    private dcAllocatedToClientsGroupedByVerifiersWoWRepository: Repository<DcAllocatedToClientsGroupedByVerifiersWow>,
+    @InjectRepository(DcUsedByClientsWow)
+    private dcUsedByClientsWoWRepository: Repository<DcUsedByClientsWow>,
+    @InjectRepository(DcAllocatedToClientsTotalByWeek)
+    private dcAllocatedToClientsTotalByWeekRepository: Repository<DcAllocatedToClientsTotalByWeek>,
 
     protected lotus: LotusService,
     protected lotusArchive: LotusArchiveService,
@@ -194,6 +205,113 @@ export class ScraperService {
         console.log(e);
       }
     }
+  }
+
+  //build graphs for neti dashboard
+  async buildNetiDashboardGraphs() {
+    //height for start of week of nv22 upgrade 3847920
+    const startHeight = 3847920;
+    const startTimestamp = 1713744000;
+
+    const weeksPassed = Math.ceil(
+      (new Date().getTime() / 1000 - startTimestamp) / (7 * 24 * 60 * 60),
+    ) - 1;
+
+    const entityManager = this.entityManager;
+
+    const dcAllocatedToClientsGroupedByVerifiers = await entityManager.query(`
+      with height_intervals as(
+        select
+            ${startHeight}+n start_height,
+            ${startHeight}+n+20160 end_height,
+            date_part('year', to_timestamp(1598306400 + 30 * (${startHeight}+n+20160))) week_year,
+            extract('week' from to_timestamp(1598306400 + 30 * (${startHeight}+n))) as week_no
+        from generate_series(0, ${weeksPassed}*20160, 20160) n)
+      select hi.start_height, hi.end_height, sum("allowance") total_datacap, "verifierAddressId", max(hi.week_year) week_year, max(hi.week_no) week_no from verified_client_allowance dvu right join height_intervals hi on dvu.height >= hi.start_height and dvu.height< hi.end_height
+      where "verifierAddressId" not in ('f01940930','f03018491','f01858410', 'f02049625')
+      group by hi.start_height, hi.end_height, "verifierAddressId"
+      order by  hi.start_height;`);
+
+    const dcUsedByClientsGroupedByWeeks = await entityManager.query(`
+      with height_intervals as(
+        select
+              ${startHeight}+n start_height,
+              ${startHeight}+n+20160 end_height,
+              date_part('year', to_timestamp(1598306400 + 30 * (${startHeight}+n+20160))) week_year,
+              extract('week' from to_timestamp(1598306400 + 30 * (${startHeight}+n))) as week_no
+            from generate_series(0, ${weeksPassed}*20160, 20160) n)
+            select hi.start_height, hi.end_height, sum("pieceSize") total_datacap, "clientId", max(hi.week_year) week_year, max(hi.week_no) week_no from dc_allocation_claim dvu right join height_intervals hi on dvu."termStart" >= hi.start_height and dvu."termStart"< hi.end_height and "sectorId" is not null
+        group by hi.start_height, hi.end_height, "clientId"
+        order by  hi.start_height;`);
+
+    const dcAllocatedToClientsTotalByWeeks = await entityManager.query(`
+      with height_intervals as (
+        select
+          ${startHeight} + n                                                                   start_height,
+          date_part('year',to_timestamp(1598306400 + 30 * (${startHeight} + n + 20160)))              week_year,
+          extract('week' from to_timestamp(1598306400 + 30 * (${startHeight} + n ))) as week_no
+        from generate_series(0, ${weeksPassed} * 20160, 20160) n)
+      select hi.start_height, sum("allowance") total_datacap, max(hi.week_year) week_year, max(hi.week_no) week_no
+        from verified_client_allowance dvu
+              right join height_intervals hi on dvu.height <= hi.start_height
+        where "verifierAddressId" not in ('f01940930','f03018491','f01858410', 'f02049625')      
+        group by hi.start_height
+        order by hi.start_height;`);
+
+    const dcAllocatedToClientsGroupedByVerifiersItems = [];
+    for (const item of dcAllocatedToClientsGroupedByVerifiers) {
+      dcAllocatedToClientsGroupedByVerifiersItems.push(
+        this.dcAllocatedToClientsGroupedByVerifiersWoWRepository.create({
+          startHeight: item.start_height,
+          endHeight: item.end_height,
+          amount: item.total_datacap,
+          verifierAddressId: item.verifierAddressId,
+          year: item.week_year,
+          week: item.week_no,
+        }),
+      );
+    }
+
+    await this.dcAllocatedToClientsGroupedByVerifiersWoWRepository.delete({});
+    await this.dcAllocatedToClientsGroupedByVerifiersWoWRepository.save(
+      dcAllocatedToClientsGroupedByVerifiersItems,
+    );
+
+    const dcUsedByClientsGroupedByWeeksItems = [];
+    for (const item of dcUsedByClientsGroupedByWeeks) {
+      dcUsedByClientsGroupedByWeeksItems.push(
+        this.dcUsedByClientsWoWRepository.create({
+          startHeight: item.start_height,
+          endHeight: item.end_height,
+          amount: item.total_datacap,
+          clientAddressId: `f0${item.clientId}`,
+          year: item.week_year,
+          week: item.week_no,
+        }),
+      );
+    }
+
+    await this.dcUsedByClientsWoWRepository.delete({});
+    await this.dcUsedByClientsWoWRepository.save(
+      dcUsedByClientsGroupedByWeeksItems,
+    );
+
+    const dcAllocatedToClientsTotalByWeeksItems = [];
+    for (const item of dcAllocatedToClientsTotalByWeeks) {
+      dcAllocatedToClientsTotalByWeeksItems.push(
+        this.dcAllocatedToClientsTotalByWeekRepository.create({
+          startHeight: item.start_height,
+          amount: item.total_datacap,
+          year: item.week_year,
+          week: item.week_no,
+        }),
+      );
+    }
+
+    await this.dcAllocatedToClientsTotalByWeekRepository.delete({});
+    await this.dcAllocatedToClientsTotalByWeekRepository.save(
+      dcAllocatedToClientsTotalByWeeksItems,
+    );
   }
 
   //------------------------------------------------------------------------------------------------------------------------------------------------

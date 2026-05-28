@@ -130,6 +130,13 @@ export class AppController {
     return 'done';
   }
 
+  @ApiExcludeEndpoint()
+  @Get('/util/buildNetiDashboardGraphs')
+  async buildNetiDashboardGraphs(): Promise<string> {
+    await this.scraperService.buildNetiDashboardGraphs();
+    return 'done';
+  }
+
   //github api related endpoints
 
   @ApiExcludeEndpoint()
