@@ -8,6 +8,9 @@ env:
   SLACK_CHANNEL: infra-ci-filplus
   AWS_REGION: us-east-1
   ECR_REPOSITORY: filecoin/filplus/filplus-scraper
+  # --- Deploy target (ECS). Set these to match the cluster/service you create. ---
+  ECS_CLUSTER: filplus
+  ECS_SERVICE: filplus-scraper
 
 jobs:
   build:
@@ -28,4 +31,33 @@ jobs:
       - name: Show image tag
         if: steps.build-be.outcome == 'success'
         run: echo "${{ steps.build-be.outputs.image-tag }}"
+
+      # --- Deploy: force the ECS service to pull the new image and roll a new task. ---
+      # The build step above pushed a new image to ECR. The ECS task definition
+      # references the ":latest" tag (or whatever tag build-be moves), so a forced
+      # new deployment is enough to roll the service onto the freshly-pushed image.
+      - name: Configure AWS credentials
+        if: steps.build-be.outcome == 'success'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to ECS (force new deployment)
+        if: steps.build-be.outcome == 'success'
+        run: |
+          aws ecs update-service \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --service "${{ env.ECS_SERVICE }}" \
+            --force-new-deployment \
+            --region "${{ env.AWS_REGION }}"
+
+      - name: Wait for ECS service to stabilize
+        if: steps.build-be.outcome == 'success'
+        run: |
+          aws ecs wait services-stable \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --services "${{ env.ECS_SERVICE }}" \
+            --region "${{ env.AWS_REGION }}"
 
