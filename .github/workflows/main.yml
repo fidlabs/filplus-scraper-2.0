@@ -23,7 +23,6 @@ jobs:
           slack-token: ${{ secrets.SLACK_BOT_TOKEN }}
           ecr-repository: ${{ env.ECR_REPOSITORY }}
           submodules: true
-          submodules-key: ${{ secrets.SUBMODULE_SSH_KEY }}
 
       - name: Show image tag
         if: steps.build-be.outcome == 'success'
