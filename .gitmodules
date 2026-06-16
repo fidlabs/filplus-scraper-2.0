@@ -1,3 +1,3 @@
 [submodule "submodules/filecoin-plus-scraper-entities"]
 	path = submodules/filecoin-plus-scraper-entities
-	url = git@github.com:Digital-MOB-Filecoin/filecoin-plus-scraper-entities.git
+	url = https://github.com/fidlabs/filecoin-plus-scraper-entities.git
