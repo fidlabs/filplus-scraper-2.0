@@ -1,4 +1,4 @@
-FROM node:20.18.1-alpine AS development
+FROM node:22-alpine AS development
 
 WORKDIR /usr/src/app
 COPY package.json ./
@@ -15,7 +15,7 @@ RUN yarn install --pure-lockfile \
 COPY . .
 RUN yarn run build
 
-FROM node:20.18.1-alpine AS production
+FROM node:22-alpine AS production
 
 ARG NODE_ENV=production
 ENV NODE_ENV=${NODE_ENV}
