@@ -26,6 +26,10 @@ jobs:
           slack-token: ${{ secrets.SLACK_BOT_TOKEN }}
           ecr-repository: ${{ env.ECR_REPOSITORY }}
           submodules: true
+          # Push a moving :latest tag (instead of the default commit-SHA tag) so
+          # the ECS task definition can reference :latest and force-new-deployment
+          # rolls onto each new build.
+          custom-image-tag: latest
 
       - name: Show image tag
         if: steps.build-be.outcome == 'success'
