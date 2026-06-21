@@ -7,6 +7,9 @@ import { ConnectionOptions, IConsumer } from './rabbitmq.types';
 export class RabbitMQService {
   public channel1: amqplib.Channel;
   public channel2: amqplib.Channel;
+  // Amazon MQ for RabbitMQ caps consumers at 10 per channel; channel3 holds the
+  // overflow (tracer consumers) so channel1 stays under the limit.
+  public channel3: amqplib.Channel;
   connection: amqplib.Connection;
   connectionOptions: ConnectionOptions;
 
@@ -195,5 +198,12 @@ export class RabbitMQService {
     await this.channel2.prefetch(20);
     this.channel2.on('error', this.onChannelError);
     this.channel2.on('close', this.onChannelClose);
+
+    // Same serialized (prefetch 1) semantics as channel1; carries the tracer
+    // consumers to keep any single channel under Amazon MQ's 10-consumer cap.
+    this.channel3 = await this.connection.createChannel();
+    await this.channel3.prefetch(1);
+    this.channel3.on('error', this.onChannelError);
+    this.channel3.on('close', this.onChannelClose);
   }
 }
