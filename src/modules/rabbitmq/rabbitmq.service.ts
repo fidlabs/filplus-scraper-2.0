@@ -16,8 +16,12 @@ export class RabbitMQService {
 
   public async connect() {
     const { hostname, username, password, frameMax } = this.connectionOptions;
+    // Defaults preserve local/plaintext dev (amqp://...:5672). For Amazon MQ,
+    // set RABBITMQ_PROTOCOL=amqps and RABBITMQ_PORT=5671 to connect over TLS.
     this.connection = await amqplib.connect({
+      protocol: process.env.RABBITMQ_PROTOCOL || 'amqp',
       hostname,
+      port: process.env.RABBITMQ_PORT ? parseInt(process.env.RABBITMQ_PORT, 10) : 5672,
       username,
       password,
       frameMax,
