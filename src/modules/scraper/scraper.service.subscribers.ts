@@ -76,34 +76,35 @@ export class ScraperServiceSubscribers {
       this.rabbitMQService.channel1,
     );
 
+    // Moved to channel3 to stay under Amazon MQ's 10-consumers-per-channel cap.
     this.rabbitMQService.attachConsumer(
       this.fetchTracerVerifierAllowancesConsumer,
-      this.rabbitMQService.channel1,
+      this.rabbitMQService.channel3,
     );
 
     this.rabbitMQService.attachConsumer(
       this.fetchTracerVerifiedClientAllowancesConsumer,
-      this.rabbitMQService.channel1,
+      this.rabbitMQService.channel3,
     );
 
     this.rabbitMQService.attachConsumer(
       this.fetchTracerVirtualVerifierAllowancesConsumer,
-      this.rabbitMQService.channel1,
+      this.rabbitMQService.channel3,
     );
 
     this.rabbitMQService.attachConsumer(
       this.fetchTracerVirtualVerifiedClientAllowancesConsumer,
-      this.rabbitMQService.channel1,
+      this.rabbitMQService.channel3,
     );
 
     this.rabbitMQService.attachConsumer(
       this.fetchTracerDealsConsumer,
-      this.rabbitMQService.channel1,
+      this.rabbitMQService.channel3,
     );
 
     this.rabbitMQService.attachConsumer(
       this.syncTracerDataConsumer,
-      this.rabbitMQService.channel1,
+      this.rabbitMQService.channel3,
     );
     console.log(`The module has been initialized.`);
   }
